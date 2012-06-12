@@ -30,7 +30,7 @@ class HeatMap(object):
     texture = None
     palette = None
     
-    def __init__(self, left, right, bottom, top):
+    def __init__(self, left, right, bottom, top, palette):
         if bottom > top:
             (bottom, top) = (top, bottom)
             self.invert_y = True
@@ -52,7 +52,7 @@ class HeatMap(object):
         if (self.width != abs(self.right - self.left) or
             self.height != abs(self.top - self.bottom) or
             None in (self.fbo, self.texture, self.palette)):
-            self.prepare(abs(right - left), abs(top - bottom))
+            self.prepare(abs(right - left), abs(top - bottom), palette)
         
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
@@ -68,7 +68,7 @@ class HeatMap(object):
         cls.fbo = cls.texture = cls.palette = None
     
     @classmethod
-    def prepare(cls, width, height):
+    def prepare(cls, width, height, palette_path):
         cls.cleanup()
         
         cls.width = width
@@ -88,12 +88,12 @@ class HeatMap(object):
     	glEnableClientState(GL_VERTEX_ARRAY)
 
         cls._compile_programs()
-        cls._load_palette()
+        cls._load_palette(palette_path)
         cls._create_framebuffer()
         
     @classmethod
-    def _load_palette(cls, path='palettes/classic.png'):
-        image = PIL.Image.open(path)
+    def _load_palette(cls, palette_path):
+        image = PIL.Image.open(palette_path)
         
         cls.palette = glGenTextures(1)
         glActiveTextureARB(GL_TEXTURE0)
@@ -230,24 +230,33 @@ class HeatMap(object):
     	glVertexPointerd(vertices)
     	glDrawArrays(GL_QUADS, 0, len(vertices))
         glFlush()
+
+
    
-    def get_image(self):
+    def get_pil_image(self):
         # Get the data from the heatmap framebuffer and convert it into a PIL image
         glActiveTextureARB(GL_TEXTURE1)
-        data = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE)
-        im = PIL.Image.frombuffer('RGBA', (self.width, self.height), data, 'raw', 'RGBA', 0, (1 if self.invert_y else -1))
+        #data = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE)
+        data = glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_UNSIGNED_BYTE)
+        #im = PIL.Image.frombuffer('RGBA', (self.width, self.height), data, 'raw', 'RGBA', 0, (1 if self.invert_y else -1))
+        im = PIL.Image.frombuffer('L', (self.width, self.height), data, 'raw', 'L', 0, (1 if self.invert_y else -1))
         
         if self.invert_x:
             im.transpose(PIL.Image.FLIP_LEFT_RIGHT)
 
+        return im
+
+    def get_image(self):
+        im = self.get_pil_image()
+        # Retrieve the image as a buffer
         # Write the image to a buffer as a PNG
         f = cStringIO.StringIO()
-        im.save(f, 'png')
+        #im.save(f, 'png')
+        #im.draft('L', (self.width/8, self.height/8))
+        im.save(f, 'jpeg', quality=20)
         f.seek(0)
         
         return f
-
-        
 
 def test1():
     import random, time
